@@ -328,7 +328,7 @@ class ESModel(ESBaseModel):
         return None
 
     @classmethod
-    async def call(cls: Type[TModel], method_name, *, wait_for=None, index: Optional[str] = None,
+    async def call(cls: Type[TModel], method_name, *, index: Optional[str] = None,
                    **kwargs) -> dict | ESResponse:
         """
         Call an elasticsearch method
@@ -336,7 +336,6 @@ class ESModel(ESBaseModel):
         This is a low level ES method call, it is not recommended to use this directly.
 
         :param method_name: The name of the method to call
-        :param wait_for: Waits for all shards to sync before returning response
         :param index: The index name, if not set, it will use the index from ESConfig
         :param kwargs: The arguments to pass to the method
         :return: The result dictionary from ElasticSearch
@@ -344,8 +343,6 @@ class ESModel(ESBaseModel):
         kwargs = dict(kwargs)
         method = getattr(es, method_name)
         index = index or cls.ESConfig.index
-        if wait_for is not None:
-            kwargs['refresh'] = "wait_for"
         if 'request_timeout' not in kwargs:
             kwargs['request_timeout'] = 60
 
@@ -529,7 +526,8 @@ class ESModel(ESBaseModel):
 
         return obj
 
-    async def save(self, *, wait_for=False, pipeline: Optional[str] = None, routing: Optional[str] = None) -> str:
+    async def save(self, *, wait_for=False, refresh: Union[bool, Literal["wait_for"]] = False,
+                   pipeline: Optional[str] = None, routing: Optional[str] = None) -> str:
         """
         Save document into elasticsearch.
 
@@ -539,16 +537,22 @@ class ESModel(ESBaseModel):
         If no id is provided, then document will be indexed and elasticsearch will generate a suitable id that will be
         populated on the returned model.
 
-        :param wait_for: Waits for all shards to sync before returning response - useful when writing
-                         tests. Defaults to False.
+        :param wait_for: (Deprecated, use refresh instead) Waits for all shards to sync before returning response
+        :param refresh: Controls when changes become visible to search. False (default) = no refresh,
+                       True = immediate refresh, "wait_for" = wait for next scheduled refresh
         :param pipeline: Pipeline to use for indexing
         :param routing: Shard routing value
         :return: The new document's ID, it is always a string, even if the id field is an integer
         """
         kwargs: dict = dict(
             document=self.to_es(),
-            wait_for=wait_for,
         )
+
+        # Handle refresh parameter (new way has priority over wait_for)
+        if refresh:
+            kwargs['refresh'] = refresh
+        elif wait_for:
+            kwargs['refresh'] = "wait_for"
 
         kwargs['id'] = self.__id__
         if self.ESConfig.id_field:
@@ -595,25 +599,32 @@ class ESModel(ESBaseModel):
         except ElasticNotFoundError:
             raise NotFoundError(f"Document with id {id} not found")
 
-    async def delete(self, *, wait_for=False, routing: Optional[str] = None):
+    async def delete(self, *, wait_for=False, refresh: Union[bool, Literal["wait_for"]] = False,
+                     routing: Optional[str] = None):
         """
         Deletes document from ElasticSearch.
 
-        :param wait_for: Waits for all shards to sync before returning response - useful when writing
-                         tests. Defaults to False.
+        :param wait_for: (Deprecated, use refresh instead) Waits for all shards to sync before returning response
+        :param refresh: Controls when changes become visible to search. False (default) = no refresh,
+                       True = immediate refresh, "wait_for" = wait for next scheduled refresh
         :param routing: Shard routing value
         :raises esorm.error.NotFoundError: Returned if document not found
         :raises ValueError: Returned when id attribute missing from instance
         """
         kwargs: dict = dict(id=self.__id__)
+
+        # Handle refresh parameter (new way has priority over wait_for)
+        if refresh is not False:
+            kwargs['refresh'] = refresh
+        elif wait_for:
+            kwargs['refresh'] = "wait_for"
+
         if self._primary_term is not None:
             kwargs['if_primary_term'] = self._primary_term
         if self._seq_no is not None:
             kwargs['if_seq_no'] = self._seq_no
         try:
-            await self.call('delete', wait_for=wait_for,
-                            routing=routing if routing is not None else self.__routing__,
-                            **kwargs)
+            await self.call('delete', routing=routing if routing is not None else self.__routing__, **kwargs)
         except ElasticNotFoundError:
             raise NotFoundError(f"Document with id {self.__id__} not found!")
 
@@ -867,8 +878,8 @@ class ESModelTimestamp(ESModel):
     created_at: Optional[datetime] = Field(None, description="Creation date and time")
     modified_at: Optional[datetime] = Field(default_factory=utcnow, description="Modification date and time")
 
-    async def save(self, *, wait_for=False, force_new=False, pipeline: Optional[str] = None,
-                   routing: Optional[str] = None) -> str:
+    async def save(self, *, wait_for=False, refresh: Union[bool, Literal["wait_for"]] = False,
+                   force_new=False, pipeline: Optional[str] = None, routing: Optional[str] = None) -> str:
         """
         Save document into elasticsearch.
 
@@ -878,8 +889,9 @@ class ESModelTimestamp(ESModel):
         If no id is provided, then document will be indexed and elasticsearch will generate a suitable id that will be
         populated on the returned model.
 
-        :param wait_for: Waits for all shards to sync before returning response - useful when writing
-            tests. Defaults to False.
+        :param wait_for: (Deprecated, use refresh instead) Waits for all shards to sync before returning response
+        :param refresh: Controls when changes become visible to search. False (default) = no refresh,
+                       True = immediate refresh, "wait_for" = wait for next scheduled refresh
         :param force_new: It is assumed to be a new document, so created_at will be set to current time
                           (it is no more necessary, because created_at is set to current time if it is None.
                           It is here for backward compatibility)
@@ -891,7 +903,7 @@ class ESModelTimestamp(ESModel):
         # Set created_at if not already set
         if force_new or not self.created_at:
             self.created_at = self.modified_at
-        return await super().save(wait_for=wait_for, pipeline=pipeline, routing=routing)
+        return await super().save(wait_for=wait_for, refresh=refresh, pipeline=pipeline, routing=routing)
 
 
 #

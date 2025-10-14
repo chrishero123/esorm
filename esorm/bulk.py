@@ -1,6 +1,8 @@
 """
 Bulk operation for ElasticSearch
 """
+from typing import Union, Literal
+
 from .error import BulkError, BulkOperationError
 from .utils import utcnow
 
@@ -13,17 +15,23 @@ class ESBulk:
     Bulk operation for ElasticSearch
     """
 
-    def __init__(self, wait_for=False, **bulk_kwargs):
+    def __init__(self, wait_for=False, refresh: Union[bool, Literal["wait_for"]] = False, **bulk_kwargs):
         """
         Create a bulk context manager
 
-        :param wait_for: Whether to wait for active shards
+        :param wait_for: (Deprecated, use refresh instead) Whether to wait for active shards
+        :param refresh: Controls when changes become visible to search. False (default) = no refresh,
+                       True = immediate refresh, "wait_for" = wait for next scheduled refresh
         :param bulk_kwargs: Other bulk arguments
         """
         self._actions = []
         self._bulk_kwargs = dict(bulk_kwargs)
         self._models_to_index = []
-        if wait_for:
+
+        # Handle refresh parameter (new way has priority over wait_for)
+        if refresh:
+            self._bulk_kwargs['refresh'] = refresh
+        elif wait_for:
             self._bulk_kwargs['refresh'] = 'wait_for'
 
     async def __aenter__(self):

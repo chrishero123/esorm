@@ -705,6 +705,32 @@ async def create_user():
     print(new_user_id)
 ```
 
+#### Refresh Control
+
+You can control when changes become visible to search operations:
+
+```python
+# Default: No refresh - fastest, changes visible after refresh_interval
+await user.save()
+
+# Immediate refresh - changes immediately visible to search
+await user.save(refresh=True)
+
+# Wait for next refresh cycle - waits for the scheduled refresh_interval
+await user.save(wait_for=True)
+
+# Alternative: ES API compatible syntax (same as wait_for=True)
+await user.save(refresh="wait_for")
+```
+
+**Performance Considerations:**
+- **Default** (`refresh=False`, `wait_for=False`): Best performance. Changes become visible after the index's `refresh_interval` (default 1 second).
+- **`refresh=True`**: Forces an immediate refresh. Use for testing or when immediate visibility is critical. Can impact performance under heavy load.
+- **`wait_for=True`**: Waits for the next scheduled refresh. Good balance between consistency and performance.
+- **`refresh="wait_for"`**: Same as `wait_for=True`, provided for ElasticSearch API compatibility.
+
+**Note:** If both `refresh` and `wait_for` are specified, `refresh` takes priority.
+
 <a id="crud-read"></a>
 ### CRUD: Read
 
@@ -791,13 +817,24 @@ async def bulk_create_users():
 
 
 async def bulk_delete_users(users: List[User]):
-    async with ESBulk(wait_for=True) as bulk:  # Here we wait for the bulk operation to finish
+    async with ESBulk(wait_for=True) as bulk:  # Wait for scheduled refresh
         # Deleting models
         for user in users:
             await bulk.delete(user)
+
+
+async def bulk_create_users_immediate():
+    async with ESBulk(refresh=True) as bulk:  # Force immediate refresh
+        for i in range(10):
+            user = User(name=f'User {i}', age=i)
+            await bulk.save(user)
 ```
 
-The `wait_for` argument is optional. If it is `True`, the context will wait for the bulk operation to finish.
+**Refresh Control for Bulk Operations:**
+- **`wait_for=True`**: Waits for the next scheduled refresh after bulk operations complete. Good balance between consistency and performance.
+- **`refresh=True`**: Forces an immediate refresh after bulk operations. Use for testing or when immediate visibility is critical.
+- **`refresh="wait_for"`**: Same as `wait_for=True`, ES API compatible syntax.
+- **Default** (no parameters): Best performance, changes visible after the index's `refresh_interval`.
 
 <a id="search"></a>
 ### Search

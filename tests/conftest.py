@@ -70,7 +70,7 @@ async def es(docker_es, esorm, service):
     """
     ElasticSearch fixture for the specified version
     """
-    es = await esorm.connect(hosts=["http://localhost:9200"], wait=True)
+    es = await esorm.connect(hosts=["http://127.0.0.1:9200"], wait=True)
 
     es_version = await esorm.get_es_version()
     major, _, _ = map(int, es_version.split('.'))

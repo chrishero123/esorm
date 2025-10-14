@@ -48,6 +48,7 @@ async def connect(hosts: Union[str, Union[List[Union[str, Mapping[str, Union[str
     cast(_ESProxy, es).set_client(AsyncElasticsearch(hosts=hosts, *args, **kwargs))
 
     try:
+        logger.info(f"Connecting to ElasticSearch ({hosts})…")
         if wait:
             # Wait for ES to start, this will block until ES is ready to prevent routers start early
             while True:

@@ -537,7 +537,7 @@ class TestBaseTests:
             assert False, "Document should not exist"
         except Exception as e:
             assert e.__class__.__name__ == 'NotFoundError', "Incorrect exception"
-            self.__class__.doc_id = None
+            self.__class__.doc_id = None  # noqa
 
     async def test_bulk_operations(self, es, esorm, model_nested, model_timestamp):
         """
@@ -605,7 +605,7 @@ class TestBaseTests:
         Test bulk operations with conflict
         """
         doc = model_nested(f_nested=model_timestamp(f_str=f"nested_test1"), f_float=10.0)
-        await doc.save()
+        await doc.save(refresh=True)
 
         with pytest.raises(esorm.error.BulkError):
             async with esorm.ESBulk(wait_for=True) as bulk:
@@ -626,7 +626,7 @@ class TestBaseTests:
         # We test reloading here, it should now update the _primary_term and _seq_no
         await doc.reload()
         # So the deletion of document should be ok
-        await doc.delete()
+        await doc.delete(refresh=True)
 
     async def test_search(self, es, esorm, model_nested):
         """
@@ -845,16 +845,16 @@ class TestBaseTests:
         esorm.model.set_max_lazy_property_concurrency(2)
 
         # Create 3 documents with the same content
-        doc_id1 = await model_lazy_prop(f_str='test').save()
+        doc_id1 = await model_lazy_prop(f_str='test').save(refresh=True)
         assert doc_id1 is not None
-        doc_id2 = await model_lazy_prop(f_str='test').save()
+        doc_id2 = await model_lazy_prop(f_str='test').save(refresh=True)
         assert doc_id2 is not None
-        doc_id3 = await model_lazy_prop(f_str='test').save()
+        doc_id3 = await model_lazy_prop(f_str='test').save(refresh=True)
         assert doc_id3 is not None
         # Create 2 documents with different content
-        doc_id = await model_lazy_prop(f_str='test2').save()
+        doc_id = await model_lazy_prop(f_str='test2').save(refresh=True)
         assert doc_id is not None
-        doc_id = await model_lazy_prop(f_str='test3').save()
+        doc_id = await model_lazy_prop(f_str='test3').save(refresh=True)
         assert doc_id is not None
 
         # Test lazy properties
@@ -884,7 +884,7 @@ class TestBaseTests:
         Test shard routing
         """
         doc = model_config(custom_id='test1', f_str='test1')
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
         query = {
             'bool': {
@@ -901,7 +901,7 @@ class TestBaseTests:
         assert doc._routing == "test1_routing"
 
         doc = model_config(custom_id='test2', f_str='test2')
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
         query = {
             'bool': {
@@ -926,7 +926,7 @@ class TestBaseTests:
 
         # Override routing on save
         doc = model_config(custom_id='test3', f_str='test3')
-        doc_id = await doc.save(routing="test3__routing__")
+        doc_id = await doc.save(refresh=True, routing="test3__routing__")
         assert doc_id is not None
         query = {
             'bool': {
@@ -947,7 +947,7 @@ class TestBaseTests:
         Test binary fields
         """
         doc = model_es_optional(f_binary=b'\x01\x02\x03\x04')
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
 
         assert doc_id is not None
         doc = await model_es_optional.get(doc_id)
@@ -955,7 +955,7 @@ class TestBaseTests:
 
         # Modify binary field
         doc.f_binary = b'\x05\x06\x07\x08'
-        await doc.save()
+        await doc.save(refresh=True)
         doc = await model_es_optional.get(doc_id)
         assert getattr(doc.f_binary, 'bytes') == b'\x05\x06\x07\x08'
 
@@ -1015,7 +1015,7 @@ class TestBaseTests:
         await esorm.setup_mappings()
 
         doc = TestSourceModel(f_int=1, f_str='b')
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         doc = await TestSourceModel.get(doc_id)
@@ -1055,7 +1055,7 @@ class TestBaseTests:
             f_int_list=[1, 2, 3], f_str_list=['a', 'b', 'c'],
             f_unsigned_long=[4, 5, 6]
         )
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         doc = await PrimitiveListModel.get(doc_id)
@@ -1077,7 +1077,7 @@ class TestBaseTests:
         await esorm.setup_mappings()
 
         doc = PrimitiveListModel(f_int_list=[1, 2, 3], f_str_list=['a', 'b', 'c'])
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         doc = await PrimitiveListModel.get(doc_id)
@@ -1100,7 +1100,7 @@ class TestBaseTests:
         assert 'f_str_alias' in properties
 
         doc = AliasModel(f_str='test')
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         # Access by field name
@@ -1122,7 +1122,7 @@ class TestBaseTests:
         await esorm.setup_mappings()
 
         doc = IPvAnyModel(f_ipv4='127.0.0.1', f_ipv6='::1')
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         doc = await IPvAnyModel.get(doc_id)
@@ -1177,7 +1177,7 @@ class TestBaseTests:
             f_double=1.0,
             f_geo_point=geo_point(lat=1.0, lon=2.0),
         )
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         doc = await model_es.get(doc_id)
@@ -1199,7 +1199,7 @@ class TestBaseTests:
 
         # Create a document with a dense vector
         doc = DenseVectorModel(f_dense_vector=[1.0, 2.0, 3.0])
-        doc_id = await doc.save()
+        doc_id = await doc.save(refresh=True)
         assert doc_id is not None
 
         # Retrieve the document and check the dense vector
@@ -1256,7 +1256,7 @@ class TestBaseTests:
         """
         Test subfields functionality
         """
-        
+
         class SubfieldModel(esorm.ESModel):
             # Text field with keyword shortcut
             f_text_keyword: esorm.fields.text = esorm.fields.TextField(..., keyword=True)
@@ -1277,43 +1277,43 @@ class TestBaseTests:
             f_regular: str = esorm.fields.Field(..., fields={
                 'keyword': {'type': 'keyword', 'ignore_above': 256}
             })
-            
+
         await esorm.setup_mappings()
-        
+
         # Check mappings
         mappings = await es.indices.get_mapping(index=SubfieldModel.ESConfig.index)
         properties = mappings[SubfieldModel.ESConfig.index]['mappings']['properties']
-        
+
         # Test keyword shortcut
         assert properties['f_text_keyword']['type'] == 'text'
         assert 'fields' in properties['f_text_keyword']
         assert properties['f_text_keyword']['fields']['keyword']['type'] == 'keyword'
-        
+
         # Test custom subfields
         assert properties['f_text_custom']['type'] == 'text'
         assert 'fields' in properties['f_text_custom']
         assert properties['f_text_custom']['fields']['raw']['type'] == 'keyword'
         assert properties['f_text_custom']['fields']['english']['type'] == 'text'
         assert properties['f_text_custom']['fields']['english']['analyzer'] == 'english'
-        
+
         # Test combined (keyword + custom)
         assert properties['f_text_combined']['type'] == 'text'
         assert 'fields' in properties['f_text_combined']
         assert properties['f_text_combined']['fields']['keyword']['type'] == 'keyword'
         assert properties['f_text_combined']['fields']['english']['type'] == 'text'
         assert properties['f_text_combined']['fields']['english']['analyzer'] == 'english'
-        
+
         # Test numeric subfields
         assert properties['f_numeric']['type'] == 'double'
         assert 'fields' in properties['f_numeric']
         assert properties['f_numeric']['fields']['raw']['type'] == 'keyword'
-        
+
         # Test regular field with custom keyword
         assert properties['f_regular']['type'] == 'keyword'  # str maps to keyword by default
         assert 'fields' in properties['f_regular']
         assert properties['f_regular']['fields']['keyword']['type'] == 'keyword'
         assert properties['f_regular']['fields']['keyword']['ignore_above'] == 256
-        
+
         # Create and save a document
         doc = SubfieldModel(
             f_text_keyword='Test with Keyword',
@@ -1324,24 +1324,112 @@ class TestBaseTests:
         )
         doc_id = await doc.save(wait_for=True)
         assert doc_id is not None
-        
+
         # Test searching with keyword subfield
         results = await SubfieldModel.search({
             'term': {'f_text_keyword.keyword': 'Test with Keyword'}
         })
         assert len(results) == 1
         assert results[0].f_text_keyword == 'Test with Keyword'
-        
+
         # Test searching with custom subfield
         results = await SubfieldModel.search({
             'match': {'f_text_custom.english': 'custom testing'}
         })
         assert len(results) == 1
         assert results[0].f_text_custom == 'Custom Test'
-        
+
         # Test numeric subfield search with keyword subfield
         results = await SubfieldModel.search({
             'term': {'f_numeric.raw': '42.5'}
         })
         assert len(results) == 1
         assert results[0].f_numeric == 42.5
+
+    async def test_refresh_parameter(self, es, esorm):
+        """
+        Test refresh parameter functionality
+        Tests refresh=True, refresh="wait_for", and backward compatibility with wait_for=True
+        """
+
+        class RefreshTestModel(esorm.ESModel):
+            f_str: str
+            f_int: int
+
+        await esorm.setup_mappings()
+
+        # Test 1: refresh=True (immediate refresh)
+        doc1 = RefreshTestModel(f_str='test_refresh_true', f_int=1)
+        doc_id1 = await doc1.save(refresh=True)
+        assert doc_id1 is not None
+
+        # Document should be immediately visible after save with refresh=True
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_refresh_true'})
+        assert len(results) == 1
+        assert results[0].f_int == 1
+
+        # Test 2: refresh="wait_for" (wait for next scheduled refresh)
+        doc2 = RefreshTestModel(f_str='test_refresh_wait_for', f_int=2)
+        doc_id2 = await doc2.save(refresh="wait_for")
+        assert doc_id2 is not None
+
+        # Document should be visible after save with refresh="wait_for"
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_refresh_wait_for'})
+        assert len(results) == 1
+        assert results[0].f_int == 2
+
+        # Test 3: wait_for=True (backward compatibility)
+        doc3 = RefreshTestModel(f_str='test_wait_for_true', f_int=3)
+        doc_id3 = await doc3.save(wait_for=True)
+        assert doc_id3 is not None
+
+        # Document should be visible after save with wait_for=True
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_wait_for_true'})
+        assert len(results) == 1
+        assert results[0].f_int == 3
+
+        # Test 4: refresh parameter has priority over wait_for
+        doc4 = RefreshTestModel(f_str='test_priority', f_int=4)
+        doc_id4 = await doc4.save(refresh=True, wait_for=True)
+        assert doc_id4 is not None
+
+        # Document should be visible immediately (refresh=True takes priority)
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_priority'})
+        assert len(results) == 1
+        assert results[0].f_int == 4
+
+        # Test 5: Test delete with refresh parameter
+        doc5 = RefreshTestModel(f_str='test_delete_refresh', f_int=5)
+        doc_id5 = await doc5.save(refresh=True)
+        assert doc_id5 is not None
+
+        # Verify document exists
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_delete_refresh'})
+        assert len(results) == 1
+
+        # Delete with refresh=True
+        await doc5.delete(refresh=True)
+
+        # Document should be immediately gone
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_delete_refresh'})
+        assert len(results) == 0
+
+        # Test 6: Test bulk operations with refresh parameter
+        async with esorm.ESBulk(refresh=True) as bulk:
+            for i in range(5):
+                doc = RefreshTestModel(f_str='test_bulk_refresh', f_int=100 + i)
+                await bulk.save(doc)
+
+        # Documents should be immediately visible
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_bulk_refresh'})
+        assert len(results) == 5
+
+        # Test 7: Test bulk operations with refresh="wait_for"
+        async with esorm.ESBulk(refresh="wait_for") as bulk:
+            for i in range(3):
+                doc = RefreshTestModel(f_str='test_bulk_wait_for', f_int=200 + i)
+                await bulk.save(doc)
+
+        # Documents should be visible after refresh
+        results = await RefreshTestModel.search_by_fields({'f_str': 'test_bulk_wait_for'})
+        assert len(results) == 3
